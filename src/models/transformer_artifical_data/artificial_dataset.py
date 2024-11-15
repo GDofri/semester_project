@@ -34,8 +34,7 @@ class ArtificialStreaksDataset(Dataset):
         images = [torch.log(image + 1) for image in images]
         images = [image.transpose(0, 1) for image in images]
 
-        targets = torch.log(targets + 10e-6)  # List of targets
-
+        # targets = torch.log(targets + 10e-6)  # List of targets
         # images list of tensors of shape (,)
         # targets (num_images, 1)
         # images_mean, images_std, targets_mean, targets_std: Tensors of shape (1,)
@@ -77,7 +76,7 @@ def collate_fn(batch):
     return padded_sequences, attention_mask, targets
 
 
-def split_data_into_datasets(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu', data_path = None):
+def split_data_into_datasets(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu', data_path = None, no_samples = -1):
 
 
     if not data_path:
@@ -85,6 +84,8 @@ def split_data_into_datasets(train=0.8, val=0.1, test=0.1, seed=1104, device='cp
 
     # Load the data
     data_df = pd.read_csv(os.path.join(data_path, 'image_parameters.csv'))
+    if no_samples > 0:
+        data_df = data_df.head(no_samples)
 
     # Split the data into training + validation and testing
     train_val_df, test_df = train_test_split(data_df, test_size=test, random_state=seed)

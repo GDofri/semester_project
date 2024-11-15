@@ -239,4 +239,4 @@ fabric.properties
 # The data and dataset folders
 data/
 src/datasets/strips_181024
-
+src/datasets/artificial_strips

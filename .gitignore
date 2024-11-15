@@ -238,5 +238,5 @@ fabric.properties
 
 # The data and dataset folders
 data/
-datasets/strips_181024
+src/datasets/strips_181024
 

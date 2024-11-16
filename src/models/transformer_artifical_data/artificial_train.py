@@ -99,9 +99,10 @@ def train(
         # Validation step
         model.eval()
         val_loss = 0
+        val_error = 0
 
         val_loader_tqdm = tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Validation", leave=False)
-
+        total_elements = len(val_loader.dataset)
         with torch.no_grad():
             for padded_sequences, attention_mask, targets in val_loader_tqdm:
                 padded_sequences = padded_sequences.to(device)
@@ -110,13 +111,14 @@ def train(
 
                 outputs = model(padded_sequences, attention_mask).squeeze(-1)
                 loss = criterion(outputs, targets)
-                val_loss += loss.item()
-
+                val_loss += loss.item() * targets.size(0)
+                val_error += (outputs - targets).sum().item()
                 val_loader_tqdm.set_postfix(loss=loss.item())  # Update tqdm with the current loss
 
-        avg_val_loss = val_loss / len(val_loader)
+        avg_val_loss = val_loss / total_elements
+        avg_val_error = val_error / total_elements
         val_losses.append(avg_val_loss)
-        print(f"Validation Loss: {avg_val_loss:.4f}")
+        print(f"Validation Loss: {avg_val_loss:.4f}, Validation Mean Error: {avg_val_error:.4} ")
 
         # Early Stopping Check
         if avg_val_loss < best_val_loss:

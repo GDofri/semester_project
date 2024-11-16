@@ -27,7 +27,7 @@ import time
 #         f.write("epoch,train_loss,val_loss\n")
 
 
-def evaluate_model(model, test_dataset, test_df, batch_size=1, save=False, file_name="", desc=""):
+def evaluate_model(model, test_dataset, test_df, batch_size=1, masked_model=True, save=False, file_name="", desc=""):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     model.eval()
@@ -73,7 +73,10 @@ def evaluate_model(model, test_dataset, test_df, batch_size=1, save=False, file_
             targets = targets.to(device)
 
             # Model prediction
-            outputs = model(padded_sequences, attention_mask).squeeze(-1)
+            if masked_model:
+                outputs = model(padded_sequences, attention_mask).squeeze(-1)
+            else:
+                outputs = model(padded_sequences).squeeze(-1)
 
             # Rescale outputs and targets
             outputs_rescaled = outputs * targets_std + targets_mean

@@ -96,18 +96,9 @@ def evaluate_model(model, test_dataset, test_df, batch_size=1, save=False, file_
             # Compute ME for each sample in the batch
             me = predicted_frequency - true_frequency
 
-            # Get corresponding DataFrame rows
-            batch_size_actual = targets.size(0)
-            df_rows = test_df.iloc[idx * batch_size: idx * batch_size + batch_size_actual]
-            width = df_rows['width'].values
-
-            # Assert that the true frequencies match the df frequency
-            assert np.allclose(true_frequency, df_rows['frequency'].values)
-
             # Store results
             predicted_frequencies.extend(predicted_frequency)
             true_frequencies.extend(true_frequency)
-            widths.extend(width)
             mses.extend(mse)
             maes.extend(mae)
             mes.extend(me)

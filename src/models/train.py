@@ -81,6 +81,7 @@ def train(
     val_losses = []
     test_losses = []
 
+
     print("Starting training")
     for epoch in range(num_epochs):
         model.train()
@@ -103,6 +104,7 @@ def train(
             total_train_loss += loss.item()
             train_loader_tqdm.set_postfix(loss=loss.item())
 
+
         avg_train_loss = total_train_loss / len(train_loader)
         train_losses.append(avg_train_loss)
         print(f"Epoch [{epoch+1}/{num_epochs}], Training Loss: {avg_train_loss:.4f}")
@@ -110,6 +112,7 @@ def train(
         # Validation step
         model.eval()
         total_val_loss = 0
+        total_val_err = 0
         val_loader_tqdm = tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Validation", leave=False)
 
         with torch.no_grad():
@@ -122,11 +125,13 @@ def train(
                 outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
                 loss = criterion(outputs, targets)
                 total_val_loss += loss.item()
+                total_val_err = torch.mean(torch.abs(outputs - targets))
                 val_loader_tqdm.set_postfix(loss=loss.item())
 
         avg_val_loss = total_val_loss / len(val_loader)
+        avg_val_err = total_val_err / len(val_loader)
         val_losses.append(avg_val_loss)
-        print(f"Validation Loss: {avg_val_loss:.4f}")
+        print(f"Validation Loss: {avg_val_loss:.4f}, Validation Error: {avg_val_err:.4f}")
 
     # Test step
     model.eval()

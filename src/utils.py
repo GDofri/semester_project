@@ -17,6 +17,8 @@ import os
 def get_project_root() -> str:
     return os.path.dirname(os.path.abspath(__file__ + '/..'))
 
+def path_from_proot( path: str ) -> str:
+    return os.path.join(get_project_root(), path)
 def get_cell_order():
     print("Warning: This cell order should be updated with a new one, refer to the OmegaCam manual.")
     cell_order = np.array([

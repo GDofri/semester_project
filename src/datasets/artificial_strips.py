@@ -92,7 +92,7 @@ def generate_sine_images(
             yi = int(y_values[xi])
             yi_thickness_range = range(
                 max(0, yi - thickness),
-                min(hyi + thickness + 1)
+                min(h, yi + thickness + 1)
             )
             for yj in yi_thickness_range:
                 image[yj, xi] = 255.0  # Brightest part of the wave

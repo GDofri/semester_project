@@ -80,7 +80,7 @@ def split_data_into_datasets(train=0.8, val=0.1, test=0.1, seed=1104, device='cp
 
 
     if not data_path:
-        data_path = os.path.join(utils.get_project_root(), 'src', 'datasets', 'artificial_strips')
+        data_path = os.path.join(utils.get_project_root(), 'src', 'datasets', 'artificial_strips', 'artificial_xw')
 
     # Load the data
     data_df = pd.read_csv(os.path.join(data_path, 'image_parameters.csv'))

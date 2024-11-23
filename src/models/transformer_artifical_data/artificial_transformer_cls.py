@@ -5,12 +5,14 @@ import torch.nn.functional as F
 import math
 
 
-class Transformer(nn.Module):
+class TransformerWCLS(nn.Module):
     def __init__(self, input_dim=32, embed_dim=128, num_layers=3, num_heads=4, dropout=0.1):
         # super(Transformer, self).__init__()
         super().__init__()
 
         self.token_embedding = nn.Linear(input_dim, embed_dim)
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
 
         self.positional_encoding = PositionalEncoding(embed_dim, dropout)
 
@@ -31,10 +33,20 @@ class Transformer(nn.Module):
         # Mask is False for masked tokens, True for non-masked tokens
         # attention_mask: (batch_size, seq_len)
 
-        batch_size, seq_len, input_dim = x.size()
-
         # Token embedding
         x = self.token_embedding(x)
+
+        batch_size, seq_len, input_dim = x.size()
+
+        # Prepare the [CLS] token
+        cls_token = self.cls_token.expand(batch_size, -1, -1)  # (batch_size, 1, embed_dim)
+
+        # Prepend [CLS] token to the sequence
+        x = torch.cat([cls_token, x], dim=1)  # (batch_size, seq_len + 1, embed_dim)
+
+        # Adjust attention mask
+        # Prepend a 'valid' token for [CLS]
+        attention_mask = torch.cat([torch.ones(batch_size, 1, device=x.device, dtype=attention_mask.dtype), attention_mask], dim=1)  # (batch_size, seq_len + 1)
 
         # Apply positional encoding
         x = self.positional_encoding(x)
@@ -46,24 +58,9 @@ class Transformer(nn.Module):
         # Transformer encoding
         x = self.transformer_encoder(x, src_key_padding_mask=key_padding_mask)
 
-        # Apply masking before pooling
-        mask = attention_mask.unsqueeze(-1).float()  # (batch_size, seq_len, 1)
-        x = x * mask  # Zero out the masked positions
-
-        # Compute the sum over the sequence dimension
-        x_sum = x.sum(dim=1)  # (batch_size, embed_dim)
-
-        # Compute the number of valid tokens per example
-        valid_token_count = mask.sum(dim=1)  # (batch_size, 1)
-
-        # Avoid division by zero
-        valid_token_count = valid_token_count.clamp(min=1)
-
-        # Compute the mean over valid tokens
-        x_mean = x_sum / valid_token_count  # (batch_size, embed_dim)
-
+        cls_output = x[:, 0, :]
         # Pass through the regression head
-        output = self.regression_head(x_mean)  # (batch_size, 1)
+        output = self.regression_head(cls_output)  # (batch_size, 1)
 
         return output
 

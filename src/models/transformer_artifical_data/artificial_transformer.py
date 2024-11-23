@@ -31,8 +31,6 @@ class Transformer(nn.Module):
         # Mask is False for masked tokens, True for non-masked tokens
         # attention_mask: (batch_size, seq_len)
 
-        batch_size, seq_len, input_dim = x.size()
-
         # Token embedding
         x = self.token_embedding(x)
 
@@ -46,11 +44,32 @@ class Transformer(nn.Module):
         # Transformer encoding
         x = self.transformer_encoder(x, src_key_padding_mask=key_padding_mask)
 
-        # Pooling and regression head
-        x = x.mean(dim=1)  # (batch_size, embed_dim)
-        output = self.regression_head(x)  # (batch_size, 1)
+        # Apply masking before pooling
+        mask = attention_mask.unsqueeze(-1).float()  # (batch_size, seq_len, 1)
+        x = x * mask  # Zero out the masked positions
+
+        # Compute the sum over the sequence dimension
+        x_sum = x.sum(dim=1)  # (batch_size, embed_dim)
+
+        # Compute the number of valid tokens per example
+        valid_token_count = mask.sum(dim=1)  # (batch_size, 1)
+
+        # Avoid division by zero
+        valid_token_count = valid_token_count.clamp(min=1)
+
+        # Compute the mean over valid tokens
+        x_mean = x_sum / valid_token_count  # (batch_size, embed_dim)
+
+        # Pass through the regression head
+        output = self.regression_head(x_mean)  # (batch_size, 1)
 
         return output
+
+        # # Pooling and regression head
+        # x = x.mean(dim=1)  # (batch_size, embed_dim)
+        # output = self.regression_head(x)  # (batch_size, 1)
+        #
+        # return output
 
 
 class PositionalEncoding(nn.Module):

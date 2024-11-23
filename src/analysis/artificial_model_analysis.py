@@ -148,13 +148,13 @@ def analyze_results(df_w_analysis):
     print(f"Correlation between Width and MSE: {width_mse_corr:.4f}, p-value: {width_mse_pval:.4e}")
     print(f"Mean squared error: {np.mean(mses):.4f}, Mean error: {np.mean(mes):.4f}, Mean absolute error: {np.mean(maes):.4f}")
 
-    # Plot True Frequency vs. MSE
-    plt.figure(figsize=(8, 6))
-    plt.scatter(true_frequencies, mses)
-    plt.xlabel('True Frequency')
-    plt.ylabel('Mean Squared Error (MSE)')
-    plt.title('True Frequency vs. MSE')
-    plt.show()
+    # # Plot True Frequency vs. MSE
+    # plt.figure(figsize=(8, 6))
+    # plt.scatter(true_frequencies, mses)
+    # plt.xlabel('True Frequency')
+    # plt.ylabel('Mean Squared Error (MSE)')
+    # plt.title('True Frequency vs. MSE')
+    # plt.show()
 
     # Plot Width vs. MSE
     plt.figure(figsize=(8, 6))
@@ -163,16 +163,59 @@ def analyze_results(df_w_analysis):
     plt.ylabel('Mean Squared Error (MSE)')
     plt.title('Width vs. MSE')
     plt.show()
+    #
+    # # Additional Plot: True vs. Predicted Frequencies
+    # plt.figure(figsize=(8, 6))
+    # plt.scatter(true_frequencies, predicted_frequencies)
+    # plt.plot([true_frequencies.min(), true_frequencies.max()],
+    #          [true_frequencies.min(), true_frequencies.max()], 'k--', lw=2)
+    # plt.xlabel('True Frequency')
+    # plt.ylabel('Predicted Frequency')
+    # plt.title('Predicted vs. True Frequency')
+    # plt.show()
 
-    # Additional Plot: True vs. Predicted Frequencies
-    plt.figure(figsize=(8, 6))
-    plt.scatter(true_frequencies, predicted_frequencies)
-    plt.plot([true_frequencies.min(), true_frequencies.max()],
+def width_against_mse(df_w_analysis, ax=None):
+    if ax is None:
+        ax = plt.gca()  # Use current axis if none provided
+    widths = df_w_analysis['width'].values
+    mses = df_w_analysis['mse'].values
+    ax.scatter(widths, mses, s=10)
+    ax.set_xlabel('Width')
+    ax.set_ylabel('Squared Error')
+    ax.set_title('Width vs. MSE')
+    return ax
+
+def true_freq_against_mse(df_w_analysis, ax=None):
+    if ax is None:
+        ax = plt.gca()  # Use current axis if none provided
+    true_frequencies = df_w_analysis['frequency'].values
+    mses = df_w_analysis['mse'].values
+    widths = df_w_analysis['width'].values
+    min_width = 400
+    max_width = 600
+    widths_normalized = (widths - min_width) / (max_width - min_width)
+    ax.scatter(true_frequencies, mses, s=10, c=widths_normalized, cmap='viridis')
+    ax.set_xlabel('True Frequency')
+    ax.set_ylabel('Squared Error')
+    return ax
+
+def true_freq_against_pred_freq(df_w_analysis, ax=None):
+    if ax is None:
+        ax = plt.gca()  # Use current axis if none provided
+    true_frequencies = df_w_analysis['frequency'].values
+    predicted_frequencies = df_w_analysis['predicted_frequency'].values
+    widths = df_w_analysis['width'].values
+    min_width = 400
+    max_width = 600
+    widths_normalized = (widths - min_width) / (max_width - min_width)
+    ax.scatter(true_frequencies, predicted_frequencies, s=10, c=widths_normalized, cmap='viridis')
+    ax.plot([true_frequencies.min(), true_frequencies.max()],
              [true_frequencies.min(), true_frequencies.max()], 'k--', lw=2)
-    plt.xlabel('True Frequency')
-    plt.ylabel('Predicted Frequency')
-    plt.title('Predicted vs. True Frequency')
-    plt.show()
+    ax.set_xlabel('True Frequency')
+    ax.set_ylabel('Predicted Frequency')
+    return ax
+
+
 
 if __name__ == '__main__':
     pass

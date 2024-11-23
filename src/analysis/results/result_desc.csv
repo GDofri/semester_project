@@ -4,9 +4,10 @@ test1.csv,2024-11-15 21:18:07,This is just a test to test the model
 test2.csv,2024-11-16 13:23:22,This is just a test to test the model
 test3.csv,2024-11-16 13:36:18,This is just a test to test the model
 art1.csv,2024-11-16 14:15:32,"w600pc, bs16, base model, lr1e-4"
-art2.csv,2024-11-16 14:22:12,"wxpx, bs16, base model, lr1e-4"
 art2.csv,2024-11-16 14:29:17,"wxpx, bs16, base model, lr1e-4"
 art3.csv,2024-11-16 14:40:02,"wxpx, bs8, base model, lr1e-4"
 art4.csv,2024-11-16 14:43:59,"wxpx, bs4, base model, lr1e-4"
 art5.csv,2024-11-16 14:55:11,"wxpx, bs2, base model, lr1e-4"
 art6.csv,2024-11-16 15:38:33,"wxpx, bs1, base model, lr1e-4"
+art-cnn2.csv,2024-11-17 13:54:58,"w600px1000n, bs16, base cnn model, lr1e-4"
+art7.csv,2024-11-17 14:03:14,"w600px1000n, bs16, base model, lr1e-4"

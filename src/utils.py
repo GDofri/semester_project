@@ -298,11 +298,11 @@ def get_strip_file_name_from_items(file_name: str, extension: str, id: str):
 
 def get_strip_file_path_from_items(file_name: str, extension: str, id: str):
     filename = f"{file_name}_strip_{extension}_{id}.npy"
-    return os.path.join(get_project_root(), 'datasets', 'strips_181024', filename)
+    return os.path.join(get_project_root(), 'src', 'datasets', 'strips_171124_lc', filename)
 
 def get_strip_file_path(row: pd.Series):
     filename = f"{row['file_name']}_strip_{row['extension']}_{row['ID']}.npy"
-    return os.path.join(get_project_root(), 'datasets', 'strips_181024', filename)
+    return os.path.join(get_project_root(), 'src', 'datasets', 'strips_171124_lc', 'strips_171124_lc' , filename)
 
 
 

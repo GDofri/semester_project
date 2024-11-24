@@ -75,7 +75,7 @@ class ArtificialStreaksDatasetWithFixedWidth(Dataset):
         start = 0
         if not self.eval:
             # Cut image to width at a random place
-            start = np.random.randint(0, image_width - self.img_width)
+            start = np.random.randint(0, image_width - self.img_width + 1)
 
         image = image[start:start + self.img_width]
         return image, self.targets[idx]

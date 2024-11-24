@@ -160,8 +160,8 @@ def analyze_results(df_w_analysis):
     plt.figure(figsize=(8, 6))
     plt.scatter(widths, mses)
     plt.xlabel('Width')
-    plt.ylabel('Mean Squared Error (MSE)')
-    plt.title('Width vs. MSE')
+    plt.ylabel('Squared Error (SE)')
+    plt.title('Width vs. SE')
     plt.show()
     #
     # # Additional Plot: True vs. Predicted Frequencies

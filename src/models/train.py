@@ -1,5 +1,6 @@
 from src.models.dataset import StreaksDataset
-from src.models.dataset import collate_fn
+from src.models.dataset import collate_fn_w_mask
+from src.models.simple_transformer import Transformer
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -16,7 +17,8 @@ def train(
         optimizer: Optional[optim.Optimizer] = None,
         batch_size: int = 1,
         learning_rate: float = 1e-4,
-) -> Tuple[nn.Module, optim.Optimizer, List[float], List[float], List[float]]:
+        patience: int = 5,
+) -> Tuple[nn.Module, optim.Optimizer, List[float], List[float], float]:
     """
     Train the model.
 
@@ -29,33 +31,19 @@ def train(
         optimizer (Optional[optim.Optimizer]): Optimizer to use. If None, a new optimizer is created.
         batch_size (int): Batch size for data loaders.
         learning_rate (float): Learning rate for the optimizer.
+        patience (int): Number of epochs with no improvement after which training will be stopped.
 
     Returns:
         Tuple[nn.Module, optim.Optimizer, List[float], List[float], List[float]]:
-            Trained model, optimizer, training losses, validation losses, test losses per epoch.
+            Trained model, optimizer, training losses, validation losses, per epoch and test loss at the end.
     """
     print("Start of train()")
 
     # Initialize data loaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        collate_fn=collate_fn,
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-    )
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-    )
-    print("Loaded datasets")
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_w_mask)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn_w_mask)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn_w_mask)
+    print("Data loaders initialized")
 
     # Initialize the model, optimizer, and loss function
     if model is None:
@@ -76,7 +64,10 @@ def train(
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    # Lists to store losses
+    best_val_loss = float('inf')
+    epochs_without_improvement = 0
+    best_model_state = None
+
     train_losses = []
     val_losses = []
     test_losses = []
@@ -85,7 +76,7 @@ def train(
     print("Starting training")
     for epoch in range(num_epochs):
         model.train()
-        total_train_loss = 0
+        total_loss = 0
         train_loader_tqdm = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Training", leave=False)
 
         for padded_sequences, attention_mask, numeric_features, targets in train_loader_tqdm:
@@ -95,26 +86,25 @@ def train(
             targets = targets.to(device)
 
             optimizer.zero_grad()
-
             outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
             loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
 
-            total_train_loss += loss.item()
+            total_loss += loss.item()
             train_loader_tqdm.set_postfix(loss=loss.item())
 
-
-        avg_train_loss = total_train_loss / len(train_loader)
-        train_losses.append(avg_train_loss)
-        print(f"Epoch [{epoch+1}/{num_epochs}], Training Loss: {avg_train_loss:.4f}")
+        avg_loss = total_loss / len(train_loader)
+        train_losses.append(avg_loss)
+        print(f"Epoch [{epoch+1}/{num_epochs}], Training Loss: {avg_loss:.4f}")
 
         # Validation step
         model.eval()
-        total_val_loss = 0
-        total_val_err = 0
-        val_loader_tqdm = tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Validation", leave=False)
+        val_loss = 0
+        val_error = 0
 
+        val_loader_tqdm = tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Validation", leave=False)
+        total_elements = len(val_loader.dataset)
         with torch.no_grad():
             for padded_sequences, attention_mask, numeric_features, targets in val_loader_tqdm:
                 padded_sequences = padded_sequences.to(device)
@@ -124,18 +114,37 @@ def train(
 
                 outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
                 loss = criterion(outputs, targets)
-                total_val_loss += loss.item()
-                total_val_err = torch.mean(torch.abs(outputs - targets))
-                val_loader_tqdm.set_postfix(loss=loss.item())
+                val_loss += loss.item() * targets.size(0)
+                val_error += (outputs - targets).sum().item()
+                val_loader_tqdm.set_postfix(loss=loss.item())  # Update tqdm with the current loss
 
-        avg_val_loss = total_val_loss / len(val_loader)
-        avg_val_err = total_val_err / len(val_loader)
+        avg_val_loss = val_loss / total_elements
+        avg_val_error = val_error / total_elements
         val_losses.append(avg_val_loss)
-        print(f"Validation Loss: {avg_val_loss:.4f}, Validation Error: {avg_val_err:.4f}")
+        print(f"Validation Loss: {avg_val_loss:.4f}, Validation Mean Error: {avg_val_error:.4} ")
+
+        # Early Stopping Check
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            epochs_without_improvement = 0
+            best_model_state = model.state_dict()
+            print(f"Validation loss improved to {best_val_loss:.4f}. Saving model.")
+        else:
+            epochs_without_improvement += 1
+            print(f"No improvement in validation loss for {epochs_without_improvement} epoch(s).")
+
+        if epochs_without_improvement >= patience:
+            print(f"Early stopping triggered after {epoch+1} epochs.")
+            break
+
+    # Load the best model
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print("Loaded best model based on validation loss.")
 
     # Test step
     model.eval()
-    total_test_loss = 0
+    test_loss = 0
     test_loader_tqdm = tqdm(test_loader, desc="Testing", leave=False)
 
     with torch.no_grad():
@@ -147,12 +156,11 @@ def train(
 
             outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
             loss = criterion(outputs, targets)
-            total_test_loss += loss.item()
+            test_loss += loss.item()
             test_loader_tqdm.set_postfix(loss=loss.item())
 
-    avg_test_loss = total_test_loss / len(test_loader)
-    test_losses.append(avg_test_loss)
+    avg_test_loss = test_loss / len(test_loader)
     print(f"Test Loss: {avg_test_loss:.4f}")
 
     print("Training complete!")
-    return model, optimizer, train_losses, val_losses, test_losses
+    return model, optimizer, train_losses, val_losses, avg_test_loss

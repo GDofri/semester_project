@@ -144,12 +144,57 @@ def split_data_into_datasets(train=0.8, val=0.1, test=0.1, seed=1104, device='cp
     return {"train": train_dataset, "val": val_dataset, "test": test_dataset}, {"train": train_df, "val": val_df, "test": test_df}
 
 
+def split_data_into_datasets_synthetic_32(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu', data_path = None, no_samples = -1, min_width=500):
+
+    if min_width > 1000:
+        raise ValueError("Minimum width should be less than 1000 for synthetic data.")
+
+    if not data_path:
+        data_path = os.path.join(utils.get_project_root(), 'src', 'datasets', 'synthetic_32')
+
+    # Load the data
+    data_df = pd.read_csv(utils.path_from_proot("src/datasets/synthetic_32.csv"))
+
+    if no_samples > 0:
+        data_df = data_df.head(no_samples)
+
+    # Split the data into training + validation and testing
+    train_val_df, test_df = train_test_split(data_df, test_size=test, random_state=seed)
+
+    # Further split training + validation into separate training and validation sets
+    train_df, val_df = train_test_split(train_val_df, test_size=val/(train + val), random_state=seed + 1)
+
+    images_folder_path = data_path
+    def get_data(data):
+        images = [
+            torch.tensor(np.load(os.path.join(images_folder_path, row['image_name'][:-4] + "npy")), dtype=torch.float, device=device) for (_, row) in data.iterrows()
+        ]
+        targets = torch.tensor(data['D'].to_numpy(), dtype=torch.float, device=device)
+        return images, targets
 
 
+    train_dataset = ArtificialStreaksDatasetWithFixedWidth(*get_data(train_df), img_width=min_width)
 
+    val_dataset = ArtificialStreaksDatasetWithFixedWidth(*get_data(val_df),
+                                 images_mean=train_dataset.images_mean,
+                                 images_std=train_dataset.images_std,
+                                 targets_mean=train_dataset.targets_mean,
+                                 targets_std=train_dataset.targets_std,
+                                 img_width=min_width,
+                                 eval=True)
+    test_dataset = ArtificialStreaksDatasetWithFixedWidth(*get_data(test_df),
+                                  images_mean=train_dataset.images_mean,
+                                  images_std=train_dataset.images_std,
+                                  targets_mean=train_dataset.targets_mean,
+                                  targets_std=train_dataset.targets_std,
+                                  img_width=min_width,
+                                  eval=True)
 
+    train_df = train_df.reset_index(drop=True)
+    val_df = val_df.reset_index(drop=True)
+    test_df = test_df.reset_index(drop=True)
 
-
+    return {"train": train_dataset, "val": val_dataset, "test": test_dataset}, {"train": train_df, "val": val_df, "test": test_df}
 
 
 

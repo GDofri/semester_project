@@ -2,14 +2,21 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from src.models.base_model import BaseModel
 
-class SimpleCNN(nn.Module):
+class SimpleCNN(BaseModel):
     def __init__(self):
         # super(SimpleCNN, self).__init__()
-        super().__init__()
+        super(SimpleCNN, self).__init__(
+            name="CNNNoNumeric",
+            description="Basic CNN",
+            input_requires_mask=False,
+            input_requires_numerics=False,
+            supports_variable_sequence_length=False
+        )
 
         # Convolutional layers
-        self.conv1 = nn.Conv2d( 1, 32, kernel_size=(5, 21), padding=(2, 10))
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=(5, 21), padding=(2, 10))
         self.conv2 = nn.Conv2d(32, 64, kernel_size=(5, 21), padding=(2, 10))
         self.conv3 = nn.Conv2d(64, 128, kernel_size=(3, 11), padding=(1, 5))
 

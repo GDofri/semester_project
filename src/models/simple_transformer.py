@@ -3,13 +3,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from src.models.base_model import BaseModel
 
-
-class Transformer(nn.Module):
+class Transformer(BaseModel):
     def __init__(self, input_dim=32, num_numeric_features=7, embed_dim=128, num_layers=3, num_heads=4, dropout=0.1):
-        # super(Transformer, self).__init__()
-        super().__init__()
-
+        super().__init__(
+            name="TransformerWNumerics",
+            description="Basic transformer with with numeric inputs.",
+            input_requires_mask=True,
+            input_requires_numerics=True,
+            supports_variable_sequence_length=True
+        )
         self.num_numeric_features = num_numeric_features
 
         self.token_embedding = nn.Linear(input_dim, embed_dim)
@@ -45,7 +49,6 @@ class Transformer(nn.Module):
         batch_size, seq_len, input_dim = x.size()
 
         numeric_features = numeric_features.unsqueeze(-1) # (batch_size, num_numeric_features, 1)
-
         numeric_embeddings = []
         for i, numeric_embedding in enumerate(self.numeric_embeddings):
             numeric_feature = numeric_features[:, i, :]

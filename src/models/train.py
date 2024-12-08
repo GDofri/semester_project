@@ -1,6 +1,7 @@
 from src.models.dataset import StreaksDataset
-from src.models.dataset import collate_fn_w_mask
-from src.models.simple_transformer import Transformer
+from src.models.base_dataset import collate_fn_w_mask
+from src.models.base_dataset import collate_fn_wo_mask
+from src.models.base_model import BaseModel
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,7 +14,7 @@ def train(
         train_dataset: StreaksDataset,
         val_dataset: StreaksDataset,
         test_dataset: StreaksDataset,
-        model: Optional[nn.Module] = None,
+        model: BaseModel,
         optimizer: Optional[optim.Optimizer] = None,
         batch_size: int = 1,
         learning_rate: float = 1e-4,
@@ -38,20 +39,20 @@ def train(
             Trained model, optimizer, training losses, validation losses, per epoch and test loss at the end.
     """
     print("Start of train()")
-
+    print("Training model:", model.get_metadata())
+    collate_fn = collate_fn_w_mask if model.input_requires_mask else collate_fn_wo_mask
     # Initialize data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn_w_mask)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn_w_mask)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn_w_mask)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
     print("Data loaders initialized")
+    sample_batch = next(iter(train_loader))
+    expected_num_batch_items = 2 + int(model.input_requires_numerics) + int(model.input_requires_mask)
+    if sum([1 for batch_item in sample_batch if batch_item is not None]) != expected_num_batch_items:
+        raise ValueError(f"Expected {expected_num_batch_items} items in the batch, but got {len(sample_batch)}")
+
 
     # Initialize the model, optimizer, and loss function
-    if model is None:
-        model = Transformer()
-        print("Created new model")
-    else:
-        print("Using existing model")
-
     if optimizer is None:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
         print("Created new optimizer")
@@ -79,14 +80,25 @@ def train(
         total_loss = 0
         train_loader_tqdm = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Training", leave=False)
 
-        for padded_sequences, attention_mask, numeric_features, targets in train_loader_tqdm:
+        for batch in train_loader_tqdm:
+            padded_sequences, attention_mask, targets, numeric_features = batch
             padded_sequences = padded_sequences.to(device)
-            attention_mask = attention_mask.to(device)
-            numeric_features = numeric_features.to(device)
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
+            if numeric_features is not None:
+                numeric_features = numeric_features.to(device)
+
             targets = targets.to(device)
 
             optimizer.zero_grad()
-            outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
+            if model.input_requires_mask and model.input_requires_numerics:
+                outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
+            elif model.input_requires_mask:
+                outputs = model(padded_sequences, attention_mask).squeeze(-1)
+            elif model.input_requires_numerics:
+                outputs = model(padded_sequences, numeric_features).squeeze(-1)
+            else:
+                outputs = model(padded_sequences).squeeze(-1)
             loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
@@ -106,13 +118,24 @@ def train(
         val_loader_tqdm = tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Validation", leave=False)
         total_elements = len(val_loader.dataset)
         with torch.no_grad():
-            for padded_sequences, attention_mask, numeric_features, targets in val_loader_tqdm:
+            for batch in train_loader_tqdm:
+                padded_sequences, attention_mask, targets, numeric_features = batch
                 padded_sequences = padded_sequences.to(device)
-                attention_mask = attention_mask.to(device)
-                numeric_features = numeric_features.to(device)
+                if attention_mask is not None:
+                    attention_mask = attention_mask.to(device)
+                if numeric_features is not None:
+                    numeric_features = numeric_features.to(device)
                 targets = targets.to(device)
 
-                outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
+                if model.input_requires_mask and model.input_requires_numerics:
+                    outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
+                elif model.input_requires_mask:
+                    outputs = model(padded_sequences, attention_mask).squeeze(-1)
+                elif model.input_requires_numerics:
+                    outputs = model(padded_sequences, numeric_features).squeeze(-1)
+                else:
+                    outputs = model(padded_sequences).squeeze(-1)
+
                 loss = criterion(outputs, targets)
                 val_loss += loss.item() * targets.size(0)
                 val_error += (outputs - targets).sum().item()
@@ -148,13 +171,24 @@ def train(
     test_loader_tqdm = tqdm(test_loader, desc="Testing", leave=False)
 
     with torch.no_grad():
-        for padded_sequences, attention_mask, numeric_features, targets in test_loader_tqdm:
+        for batch in train_loader_tqdm:
+            padded_sequences, attention_mask, targets, numeric_features = batch
             padded_sequences = padded_sequences.to(device)
-            attention_mask = attention_mask.to(device)
-            numeric_features = numeric_features.to(device)
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
+            if numeric_features is not None:
+                numeric_features = numeric_features.to(device)
             targets = targets.to(device)
 
-            outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
+            if model.input_requires_mask and model.input_requires_numerics:
+                outputs = model(padded_sequences, numeric_features, attention_mask).squeeze(-1)
+            elif model.input_requires_mask:
+                outputs = model(padded_sequences, attention_mask).squeeze(-1)
+            elif model.input_requires_numerics:
+                outputs = model(padded_sequences, numeric_features).squeeze(-1)
+            else:
+                outputs = model(padded_sequences).squeeze(-1)
+
             loss = criterion(outputs, targets)
             test_loss += loss.item()
             test_loader_tqdm.set_postfix(loss=loss.item())

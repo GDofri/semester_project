@@ -3,12 +3,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from src.models.base_model import BaseModel
 
 
-class TransformerBadPool(nn.Module):
+class TransformerBadPool(BaseModel):
     def __init__(self, input_dim=32, embed_dim=128, num_layers=3, num_heads=4, dropout=0.1):
         # super(Transformer, self).__init__()
-        super().__init__()
+        super(TransformerBadPool, self).__init__(
+            name="TransformerNoNumericBadPooling",
+            description="Basic transformer w. masked input. No masked pooling",
+            input_requires_mask=True,
+            input_requires_numerics=False,
+            supports_variable_sequence_length=True
+        )
 
         self.token_embedding = nn.Linear(input_dim, embed_dim)
 

@@ -2,13 +2,20 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-class SimpleCNNWithNumerics(nn.Module):
+from src.models.base_model import BaseModel
+class SimpleCNNWithNumerics(BaseModel):
     def __init__(self):
         # super(SimpleCNN, self).__init__()
-        super().__init__()
+        # super().__init__()
+        super(SimpleCNNWithNumerics, self).__init__(
+            name="CNNWNumeric",
+            description="Basic CNN with numeric data integration",
+            input_requires_mask=False,
+            input_requires_numerics=True,
+            supports_variable_sequence_length=False
+        )
 
-        # Convolutional layers
+    # Convolutional layers
         self.conv1 = nn.Conv2d( 1, 32, kernel_size=(5, 21), padding=(2, 10))
         self.conv2 = nn.Conv2d(32, 64, kernel_size=(5, 21), padding=(2, 10))
         self.conv3 = nn.Conv2d(64, 128, kernel_size=(3, 11), padding=(1, 5))
@@ -84,5 +91,4 @@ class SimpleCNNWithNumerics(nn.Module):
         # Further processing
         x = F.relu(self.fc_combined1(combined))
         x = self.fc_combined2(x)
-        return x
         return x

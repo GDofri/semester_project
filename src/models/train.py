@@ -118,7 +118,7 @@ def train(
         val_loader_tqdm = tqdm(val_loader, desc=f"Epoch {epoch+1}/{num_epochs} - Validation", leave=False)
         total_elements = len(val_loader.dataset)
         with torch.no_grad():
-            for batch in train_loader_tqdm:
+            for batch in val_loader_tqdm:
                 padded_sequences, attention_mask, targets, numeric_features = batch
                 padded_sequences = padded_sequences.to(device)
                 if attention_mask is not None:
@@ -171,7 +171,7 @@ def train(
     test_loader_tqdm = tqdm(test_loader, desc="Testing", leave=False)
 
     with torch.no_grad():
-        for batch in train_loader_tqdm:
+        for batch in test_loader_tqdm:
             padded_sequences, attention_mask, targets, numeric_features = batch
             padded_sequences = padded_sequences.to(device)
             if attention_mask is not None:

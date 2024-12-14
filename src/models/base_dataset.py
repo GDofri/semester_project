@@ -6,7 +6,7 @@ import numpy as np
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
-
+from torchvision import transforms
 from src import utils
 
 
@@ -30,11 +30,21 @@ class BaseDataset(Dataset):
     def __init__(self, images, targets, numeric_features=None, img_width=-1,
                  images_mean=None, images_std=None,
                  targets_mean=None, targets_std=None,
-                 numeric_features_mean=None,
-                 numeric_features_std=None, eval=False):
-
+                 numeric_features_mean=None, numeric_features_std=None,
+                 eval=False,
+                 augmentation_opts=None):
+        """
+        augmentation_opts: dict with optional augmentation parameters, e.g.
+            {
+                'horizontal_flip': True,
+                'vertical_flip': True,
+                'max_rotation': 10.0,       # degrees
+                'max_translation': 5        # pixels
+            }
+        """
         self.img_width = img_width
         self.eval = eval
+        self.augmentation_opts = augmentation_opts or {}
 
         images = [torch.log(image + 1) for image in images]
         images = [image.transpose(0, 1) for image in images]
@@ -90,8 +100,10 @@ class BaseDataset(Dataset):
 
     def __getitem__(self, idx):
         image = self.images[idx]
-        image_width = image.shape[0]
+        target = self.targets[idx]
+        numeric = self.numeric_features[idx] if self.numeric_features is not None else None
 
+        image_width = image.shape[0]
         if self.img_width > 0:
             start = 0
             if not self.eval:
@@ -99,11 +111,74 @@ class BaseDataset(Dataset):
                 start = np.random.randint(0, image_width - self.img_width + 1)
             image = image[start:start + self.img_width]
 
-        if self.numeric_features is not None:
-            return image, self.targets[idx], self.numeric_features[idx]
-        else:
-            return image, self.targets[idx]
+        # Data Augmentations
+        if not self.eval and self.augmentation_opts:
+            image = self.apply_augmentations(image)
 
+        # If image is not the correct height, cut it
+        if image.shape[1] > 32:
+            trim_size_top = (image.shape[1] - 32)//2
+            trim_size_bottom = image.shape[1] - 32 - trim_size_top
+            image = image[:, trim_size_top:-trim_size_bottom]
+
+        if numeric is not None:
+            return image, target, numeric
+        else:
+            return image, target
+
+    def apply_augmentations(self, image: torch.Tensor) -> torch.Tensor:
+        """
+        Apply random flips, rotation, and translation based on augmentation_opts.
+        We assume `image` is a 2D tensor (H, W). Adjust dims for channels if needed.
+        """
+        opts = self.augmentation_opts
+
+        # Random horizontal flip
+        if opts.get('horizontal_flip', False) and np.random.rand() < 0.5:
+            # Flip along width dimension
+            image = torch.flip(image, dims=[-1])
+
+        # Random vertical flip
+        if opts.get('vertical_flip', False) and np.random.rand() < 0.5:
+            # Flip along height dimension
+            image = torch.flip(image, dims=[-2])
+
+        # Random rotation
+        max_rotation = opts.get('max_rotation', 0)
+        if max_rotation > 0:
+            image = self.rotate_tensor(image, max_rotation)
+
+        # Random translation
+        max_translation = opts.get('max_translation', 0)
+        if max_translation > 0:
+            ty = np.random.randint(-max_translation, max_translation + 1)
+            image = self.translate_tensor(image, ty)
+
+        return image
+
+    def rotate_tensor(self, image: torch.Tensor, max_rotation: float) -> torch.Tensor:
+        """
+        Rotate the 2D `image` by `max_angle`.
+        This is a minimal example using affine_grid + grid_sample or manual rotation.
+        """
+        rotation = transforms.RandomRotation(max_rotation, interpolation=transforms.InterpolationMode.BILINEAR)
+        return rotation(image.unsqueeze(0)).squeeze(0)
+
+    def translate_tensor(self, image: torch.Tensor, ty: int) -> torch.Tensor:
+        """
+        Translate the 2D `image` by (tx, ty). Minimal manual approach:
+        """
+        # We'll fill out-of-bounds with zeros
+        w, h = image.shape
+        # Create new empty
+        translated = torch.zeros_like(image)
+        # Compute valid bounding region
+        y1_src, y1_dst = max(0, -ty), max(0, ty)
+        y2_src, y2_dst = h - abs(ty), h - abs(ty)
+
+        # Copy overlapping region
+        translated[:, y1_dst:y1_dst+(y2_src-y1_src)] = image[:, y1_src:y2_src]
+        return translated
 
 def collate_fn_w_mask(batch):
     sequences, targets, *numeric_features = zip(*batch)
@@ -131,11 +206,12 @@ def collate_fn_wo_mask(batch):
 
 def split_data_into_datasets(data_df, train=0.8, val=0.1, test=0.1, seed=1104, device='cpu', no_samples=-1,
                              min_width=-1, width_column='width', target_column='frequency', split_column=None,
-                             image_file_column='image_file', numerical_columns=None, image_directory: str = None
+                             image_file_column='image_file', numerical_columns=None, image_directory: str = None,
+                             augmentation_opts=None
                              ):
     # target_column = 'ang_vel[deg/s]'
     # numerical_columns = ['IRSKY_TEMP', 'TEMP', 'WINDSP', 'PRES', 'FWHM', 'RHUM', 'TAU0']
-
+    np.random.seed(seed)
     # Filter data by width if min_width is provided
     if width_column and min_width > 0:
         data_df = data_df[data_df[width_column] >= min_width]
@@ -170,7 +246,7 @@ def split_data_into_datasets(data_df, train=0.8, val=0.1, test=0.1, seed=1104, d
             images.append(image)
         return images, targets, numerical
 
-    train_dataset = BaseDataset(*get_data(train_data), img_width=min_width)
+    train_dataset = BaseDataset(*get_data(train_data), img_width=min_width, augmentation_opts=augmentation_opts)
 
     val_dataset = BaseDataset(*get_data(val_data),
                               images_mean=train_dataset.images_mean,
@@ -197,56 +273,36 @@ def split_data_into_datasets(data_df, train=0.8, val=0.1, test=0.1, seed=1104, d
     val_df = val_data.reset_index(drop=True)
     test_df = test_data.reset_index(drop=True)
 
-    #
-    # # Split the data into training + validation and testing
-    # train_val_df, test_df = train_test_split(data_df, test_size=test, random_state=seed)
-    #
-    # # Further split training + validation into separate training and validation sets
-    # train_df, val_df = train_test_split(train_val_df, test_size=val/(train + val), random_state=seed + 1)
-    #
-    # images_folder_path = data_path
-    # def get_data(data):
-    #     images = [
-    #         torch.tensor(np.load(os.path.join(images_folder_path, row['filename'])), dtype=torch.float, device=device) for (_, row) in data.iterrows()
-    #     ]
-    #     targets = torch.tensor(data['frequency'].to_numpy(), dtype=torch.float, device=device)
-    #     return images, targets
-    #
-    #
-    # train_dataset = ArtificialStreaksDatasetWithFixedWidth(*get_data(train_df), img_width=min_width)
-    #
-    # val_dataset = ArtificialStreaksDatasetWithFixedWidth(*get_data(val_df),
-    #                                                      images_mean=train_dataset.images_mean,
-    #                                                      images_std=train_dataset.images_std,
-    #                                                      targets_mean=train_dataset.targets_mean,
-    #                                                      targets_std=train_dataset.targets_std,
-    #                                                      img_width=min_width,
-    #                                                      eval=True)
-    # test_dataset = ArtificialStreaksDatasetWithFixedWidth(*get_data(test_df),
-    #                                                       images_mean=train_dataset.images_mean,
-    #                                                       images_std=train_dataset.images_std,
-    #                                                       targets_mean=train_dataset.targets_mean,
-    #                                                       targets_std=train_dataset.targets_std,
-    #                                                       img_width=min_width,
-    #                                                       eval=True)
-    #
-    # train_df = train_df.reset_index(drop=True)
-    # val_df = val_df.reset_index(drop=True)
-    # test_df = test_df.reset_index(drop=True)
 
     return {"train": train_dataset, "val": val_dataset, "test": test_dataset}, {"train": train_df, "val": val_df,
                                                                                 "test": test_df}
 
 
 def split_data_into_datasets_synthetic_32(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu',
-                                          image_directory='src/datasets/synthetic_32/', no_samples=-1, min_width=500):
+                                          image_directory='src/datasets/synthetic_32/', no_samples=-1, min_width=500,
+                                          augmentation_opts=None):
     data_df = pd.read_csv(utils.path_from_proot("src/datasets/synthetic_32.csv"))
     if min_width > 1000:
         raise ValueError("Minimum width should be less than 1000 for synthetic data.")
 
     return split_data_into_datasets(data_df, train=train, val=val, test=test, seed=seed, device=device,
                                     no_samples=no_samples, min_width=min_width, width_column=None, target_column='D',
-                                    image_file_column='npy_path', image_directory=image_directory)
+                                    image_file_column='npy_path', image_directory=image_directory,
+                                    augmentation_opts=augmentation_opts)
+
+def split_data_into_datasets_synthetic_50(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu',
+                                          image_directory='src/datasets/synthetic_50/', no_samples=-1, min_width=500,
+                                          augmentation_opts=None):
+
+    # For now the synthetic_50.csv would be the same as synthetic_32.csv so we just use that here.
+    data_df = pd.read_csv(utils.path_from_proot("src/datasets/synthetic_32.csv"))
+    if min_width > 1000:
+        raise ValueError("Minimum width should be less than 1000 for synthetic data.")
+
+    return split_data_into_datasets(data_df, train=train, val=val, test=test, seed=seed, device=device,
+                                    no_samples=no_samples, min_width=min_width, width_column=None, target_column='D',
+                                    image_file_column='npy_path', image_directory=image_directory,
+                                    augmentation_opts=augmentation_opts)
 
 
 def split_data_into_datasets_strips_171124_lc(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu',
@@ -254,7 +310,7 @@ def split_data_into_datasets_strips_171124_lc(train=0.8, val=0.1, test=0.1, seed
                                               min_width=500,
                                               numerical_columns=(
                                               'IRSKY_TEMP', 'TEMP', 'WINDSP', 'PRES', 'FWHM', 'RHUM', 'TAU0'),
-                                              split_on_files=True):
+                                              split_on_files=True, augmentation_opts=None):
     split_on_column = None
     if split_on_files:
         split_on_column = 'file_name'
@@ -266,7 +322,26 @@ def split_data_into_datasets_strips_171124_lc(train=0.8, val=0.1, test=0.1, seed
                                     target_column='ang_vel[deg/s]',
                                     image_file_column='image_name', image_directory=image_directory,
                                     numerical_columns=numerical_columns,
-                                    split_column=split_on_column)
+                                    split_column=split_on_column, augmentation_opts=augmentation_opts)
+
+def split_data_into_datasets_strips_141224_lc_50(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu',
+                                              image_directory='src/datasets/strips_141224_lc_50', no_samples=-1,
+                                              min_width=500,
+                                              numerical_columns=(
+                                              'IRSKY_TEMP', 'TEMP', 'WINDSP', 'PRES', 'FWHM', 'RHUM', 'TAU0'),
+                                              split_on_files=True, augmentation_opts=None):
+    split_on_column = None
+    if split_on_files:
+        split_on_column = 'file_name'
+    if numerical_columns:
+        numerical_columns = list(numerical_columns)
+    data_df = pd.read_csv(utils.path_from_proot("src/datasets/combined_lc.csv"))
+    return split_data_into_datasets(data_df, train=train, val=val, test=test, seed=seed, device=device,
+                                    no_samples=no_samples, min_width=min_width, width_column='width',
+                                    target_column='ang_vel[deg/s]',
+                                    image_file_column='image_name', image_directory=image_directory,
+                                    numerical_columns=numerical_columns,
+                                    split_column=split_on_column, augmentation_opts=augmentation_opts)
 
 
 def split_data_into_datasets_artificial_wx():

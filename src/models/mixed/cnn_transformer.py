@@ -1,43 +1,58 @@
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
 from src.models.base_model import BaseModel
 
+
 class CNNTransformer(BaseModel):
-    def __init__(self, input_dim=32, embed_dim=128, num_layers=3, num_heads=4, dropout=0.1):
+    def __init__(self, input_dim=32, embed_dim=128, num_transformer_layers=3, num_cnn_layers=3, num_heads=4,
+                 dropout=0.1):
         # super(Transformer, self).__init__()
+        number_to_word = {
+            1: 'one',
+            2: 'two',
+            3: 'three'
+        }
+        assert 0 < num_cnn_layers < 4, "Number of cnn layers must be in between 1 and 3 (inclusive)."
         super(CNNTransformer, self).__init__(
             name="CNNTransformerNoNumeric",
-            description="CNN transformer hybrid w. masked input.",
+            description=f"CNN transformer hybrid w. masked input. Has {number_to_word[num_cnn_layers]} convolutional layers",
             input_requires_mask=True,
             input_requires_numerics=False,
             supports_variable_sequence_length=True
         )
-        # super().__init__()
+
+        self.num_cnn_layers = num_cnn_layers
 
         # Convolutional layers
+
         self.conv1 = nn.Conv2d(1, 6, kernel_size=(5, 11), padding=(2, 5))
-        self.conv2 = nn.Conv2d(6, 18, kernel_size=(5, 11), padding=(2, 5))
-        self.conv3 = nn.Conv2d(18, 32, kernel_size=(5, 11), padding=(2, 5))
+        last_channel_dim = 6
+        if num_cnn_layers > 1:
+            self.conv2 = nn.Conv2d(6, 18, kernel_size=(5, 11), padding=(2, 5))
+            last_channel_dim = 18
+        if num_cnn_layers > 2:
+            self.conv3 = nn.Conv2d(18, 32, kernel_size=(5, 11), padding=(2, 5))
+            last_channel_dim = 32
 
         self.pool = nn.MaxPool2d(kernel_size=(1, 2))
 
         # Three pooling layers.
-        self.token_embedding = nn.Linear(input_dim//(2**3)*32, embed_dim)
+
+        self.token_embedding = nn.Linear(input_dim // (2 ** num_cnn_layers) * last_channel_dim, embed_dim)
 
         self.positional_encoding = PositionalEncoding(embed_dim, dropout)
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=embed_dim, nhead=num_heads,
-                                                   dim_feedforward=embed_dim*4, dropout=dropout,
+                                                   dim_feedforward=embed_dim * 4, dropout=dropout,
                                                    activation='relu', batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_transformer_layers)
 
         self.regression_head = nn.Sequential(
-            nn.Linear(embed_dim, embed_dim//2),
+            nn.Linear(embed_dim, embed_dim // 2),
             nn.ReLU(),
-            nn.Linear(embed_dim//2, 1)
+            nn.Linear(embed_dim // 2, 1)
         )
 
     def forward(self, x, attention_mask):
@@ -52,10 +67,12 @@ class CNNTransformer(BaseModel):
         x = x.unsqueeze(1)
         x = F.relu(self.conv1(x))
         x = self.pool(x)
-        x = F.relu(self.conv2(x))
-        x = self.pool(x)
-        x = F.relu(self.conv3(x))
-        x = self.pool(x)
+        if self.num_cnn_layers > 1:
+            x = F.relu(self.conv2(x))
+            x = self.pool(x)
+        if self.num_cnn_layers > 2:
+            x = F.relu(self.conv3(x))
+            x = self.pool(x)
 
         N, C, H, W = x.shape
         x = x.permute(0, 2, 1, 3).reshape(N, H, C * W)

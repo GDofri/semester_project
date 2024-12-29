@@ -4,16 +4,34 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.models.base_model import BaseModel
 
+
 class SimpleCNN(BaseModel):
-    def __init__(self):
+    def __init__(self, square=False, size='m'):
         # super(SimpleCNN, self).__init__()
         super(SimpleCNN, self).__init__(
             name="CNNNoNumeric",
-            description="Basic CNN",
+            description=f"Basic CNN w {'square' if square else 'rectangular'} kernels of size {size}",
             input_requires_mask=False,
             input_requires_numerics=False,
             supports_variable_sequence_length=False
         )
+
+        kernal_sizes = []
+        kernal_paddings = []
+        if square:
+            if size == 's':
+                kernal_sizes = [(3, 3), (3, 3), (3, 3)]
+                kernal_paddings = [(1, 1), (1, 1), (1, 1)]
+            elif size == 'm':
+                kernal_sizes = [(5, 5), (5, 5), (5, 5)]
+                kernal_paddings = [(2, 2), (2, 2), (2, 2)]
+        else:
+            if size == 's':
+                kernal_sizes = [(3, 11), (3, 11), (3, 11)]
+                kernal_paddings = [(1, 5), (1, 5), (1, 5)]
+            elif size == 'm':
+                kernal_sizes = [(5, 21), (5, 21), (3, 11)]
+                kernal_paddings = [(2, 10), (2, 10), (1, 5)]
 
         # Convolutional layers
         self.conv1 = nn.Conv2d(1, 32, kernel_size=(5, 21), padding=(2, 10))
@@ -30,7 +48,6 @@ class SimpleCNN(BaseModel):
         self.gap = nn.AdaptiveAvgPool2d(1)
         # Fully connected layer
         self.fc = nn.Linear(128, 1)
-
 
         # After conv and pooling layers: (batch_size, 64, 4, 75)
         # self.fc1 = nn.Linear(64 * 4 * 75, 128)
@@ -54,7 +71,6 @@ class SimpleCNN(BaseModel):
         params = sum([np.prod(p.size()) for p in self.conv3.parameters()])
         print(f"Total number of parameters in conv3: {params}")
 
-
         # Params in fc1
         params = sum([np.prod(p.size()) for p in self.fc.parameters()])
         print(f"Total number of parameters in fc1: {params}")
@@ -74,6 +90,6 @@ class SimpleCNN(BaseModel):
         x = self.pool(x)
         x = self.gap(x)
         # Flatten the tensor
-        x = x.view( -1, 128 )
+        x = x.view(-1, 128)
         x = self.fc(x)  # Output layer without activation (regression)
         return x

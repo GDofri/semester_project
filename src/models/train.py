@@ -20,6 +20,7 @@ def train(
     batch_size: int = 1,
     learning_rate: float = 1e-4,
     patience: int = 5,
+    verbose: bool = True
 ) -> Tuple[nn.Module, optim.Optimizer, List[float], List[float], float]:
     """
     Train the model.
@@ -82,22 +83,22 @@ def train(
         # Training
         avg_train_loss = run_epoch(train_loader, model, device, criterion, optimizer)
         train_losses.append(avg_train_loss)
-        print(f"Epoch [{epoch+1}/{num_epochs}], Training Loss: {avg_train_loss:.4f}")
+        verbose_print(f"Epoch [{epoch+1}/{num_epochs}], Training Loss: {avg_train_loss:.4f}", verbose)
 
         # Validation
         avg_val_loss = run_epoch(val_loader, model, device, criterion, optimizer=None)
         val_losses.append(avg_val_loss)
-        print(f"Validation Loss: {avg_val_loss:.4f}")
+        verbose_print(f"Validation Loss: {avg_val_loss:.4f}", verbose)
 
         # Early Stopping
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             epochs_without_improvement = 0
             best_model_state = model.state_dict()
-            print(f"Validation loss improved to {best_val_loss:.4f}. Saving model.")
+            verbose_print(f"Validation loss improved to {best_val_loss:.4f}. Saving model.", verbose)
         else:
             epochs_without_improvement += 1
-            print(f"No improvement in validation loss for {epochs_without_improvement} epoch(s).")
+            verbose_print(f"No improvement in validation loss for {epochs_without_improvement} epoch(s).", verbose)
             if epochs_without_improvement >= patience:
                 print(f"Early stopping triggered after {epoch+1} epochs.")
                 break
@@ -214,6 +215,7 @@ def train_kfolds(
         batch_size: int = 8,
         learning_rate: float = 1e-4,
         patience: int = 5,
+        verbose: str = True
 ) -> Dict[str, List[float]]:
     """
     Perform k-fold cross-validation training with model reinitialization using the input model's initial weights.
@@ -226,7 +228,7 @@ def train_kfolds(
         batch_size (int): Batch size for data loaders.
         learning_rate (float): Learning rate for the optimizer.
         patience (int): Number of epochs with no improvement after which training will stop.
-
+        verbose: If true training prints train and val losses for each epoch.
     Returns:
         Dict[str, List[float]]: Dictionary with fold-wise training, validation, and test losses.
     """
@@ -263,6 +265,7 @@ def train_kfolds(
             batch_size=batch_size,
             learning_rate=learning_rate,
             patience=patience,
+            verbose=verbose
         )
 
         # Store the final training and validation loss for this fold
@@ -312,3 +315,7 @@ def train_kfolds(
         "val_mean": val_mean,
         "val_median": val_median,
     }
+
+def verbose_print( string : str, verbose:bool):
+    if verbose:
+        print(string)

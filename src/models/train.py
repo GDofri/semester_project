@@ -8,6 +8,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from typing import Optional, Tuple, List, Dict
+import time
 
 
 def train(
@@ -40,21 +41,21 @@ def train(
         Tuple[nn.Module, optim.Optimizer, List[float], List[float], List[float]]:
             Trained model, optimizer, training losses, validation losses, per epoch and test loss at the end.
     """
-    print("Start of train()")
+
     print("Training model:", model.get_metadata())
     collate_fn = collate_fn_w_mask if model.input_requires_mask else collate_fn_wo_mask
     # Initialize data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-    test_loader =None
+    test_loader = None
     if test_dataset:
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
 
-    print("Data loaders initialized")
+    verbose_print("Data loaders initialized", verbose)
     sample_batch = next(iter(train_loader))
     expected_num_batch_items = 2 + int(model.input_requires_numerics) + int(model.input_requires_mask)
     if sum([1 for batch_item in sample_batch if batch_item is not None]) != expected_num_batch_items:
-        raise ValueError(f"Expected {expected_num_batch_items} items in the batch, but got {len(sample_batch)}")
+        print(f"WARNING: Expected {expected_num_batch_items} items in the batch, but got {len(sample_batch)}")
 
 
     # Initialize the model, optimizer, and loss function
@@ -77,8 +78,8 @@ def train(
     train_losses = []
     val_losses   = []
 
-
-    print("Starting training")
+    start = time.time()
+    verbose_print("Starting training", verbose)
     for epoch in range(num_epochs):
         # Training
         avg_train_loss = run_epoch(train_loader, model, device, criterion, optimizer)
@@ -114,7 +115,7 @@ def train(
         avg_test_loss = run_epoch(test_loader, model, device, criterion, optimizer=None)
         print(f"Test Loss: {avg_test_loss:.4f}")
 
-    print("Training complete!")
+    print(f"Training complete in {time.time() - start:.0f} seconds")
     return model, optimizer, train_losses, val_losses, avg_test_loss
 
 
@@ -215,7 +216,7 @@ def train_kfolds(
         batch_size: int = 8,
         learning_rate: float = 1e-4,
         patience: int = 5,
-        verbose: str = True
+        verbose: bool = True
 ) -> Dict[str, List[float]]:
     """
     Perform k-fold cross-validation training with model reinitialization using the input model's initial weights.

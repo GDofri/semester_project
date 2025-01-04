@@ -430,11 +430,22 @@ def prepare_datasets(
         kf = KFold(n_splits=k_fold, shuffle=True, random_state=seed)
         folds_datasets = []
 
-        for fold, (train_indices, val_indices) in enumerate(kf.split(train_val_df)):
-            print(f"Fold {fold + 1}/{k_fold}")
+        if split_column:
+            train_val_for_ksplit = train_val_df[split_column].unique()
+        else:
+            train_val_for_ksplit = train_val_df
 
-            train_subset = train_val_df.iloc[train_indices]
-            val_subset = train_val_df.iloc[val_indices]
+
+        for fold, (train_indices, val_indices) in enumerate(kf.split(train_val_for_ksplit)):
+            print(f"Fold {fold + 1}/{k_fold}")
+            if split_column:
+                train_file_names = train_val_for_ksplit[train_indices]
+                val_file_names = train_val_for_ksplit[val_indices]
+                train_subset = train_val_df[train_val_df[split_column].isin(train_file_names)]
+                val_subset = train_val_df[train_val_df[split_column].isin(val_file_names)]
+            else:
+                train_subset = train_val_df.iloc[train_indices]
+                val_subset = train_val_df.iloc[val_indices]
 
             # Create datasets
             train_images, train_targets, train_numerical = get_data(

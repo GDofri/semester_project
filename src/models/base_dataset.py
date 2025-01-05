@@ -42,6 +42,8 @@ class BaseDataset(Dataset):
             {
                 'horizontal_flip': True,
                 'vertical_flip': True,
+                'log_scale': True,
+                'normalize_images': True
                 'max_rotation': 10.0,       # degrees
                 'max_translation': 5        # pixels
             }
@@ -50,7 +52,8 @@ class BaseDataset(Dataset):
         self.eval = eval
         self.augmentation_opts = augmentation_opts or {}
 
-        images = [torch.log(image + 1) for image in images]
+        if self.augmentation_opts.get('log_scale', True):
+            images = [torch.log(image + 1) for image in images]
         images = [image.transpose(0, 1) for image in images]
 
         # targets = torch.log(targets + 10e-6)  # List of targets
@@ -92,7 +95,11 @@ class BaseDataset(Dataset):
                 self.numeric_features_std = None
 
         # Scale data
-        self.images = [(image - self.images_mean) / self.images_std for image in images]
+        if self.augmentation_opts.get('normalize_images', True):
+            self.images = [(image - self.images_mean) / self.images_std for image in images]
+        else:
+            self.images = images
+
         self.targets = (targets - self.targets_mean) / self.targets_std
         if numeric_features is not None:
             self.numeric_features = (numeric_features - self.numeric_features_mean) / self.numeric_features_std

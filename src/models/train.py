@@ -305,6 +305,8 @@ def train_kfolds(
     print(f"  Median Training Loss: {train_median:.4f}")
     print(f"  Mean Validation Loss: {val_mean:.4f}")
     print(f"  Median Validation Loss: {val_median:.4f}")
+    print(f"  Mean Test Loss: {val_median:.4f}")
+
 
     # Return the losses for all folds
     return {

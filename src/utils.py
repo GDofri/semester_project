@@ -78,7 +78,7 @@ def read_our_fits():
 
 
 def read_streaks_csv():
-    streaks = pd.read_csv(os.path.join(get_project_root(), "good_data.csv"))
+    streaks = pd.read_csv(os.path.join(get_project_root(), "good_data_lc.csv"))
 
     return streaks
 
@@ -199,38 +199,37 @@ def highlight_fits(streak_name: str, save: bool = False, show: bool = True):
     scale = 10
     streaks_csv: pd.DataFrame = read_streaks_csv()
     streaks_csv = streaks_csv[(streaks_csv["file_name"] == streak_name)]
-    fits = fitsio.FITS(get_fits_path(streak_name))
 
     fig, axes = plt.subplots(4, 8, figsize=(8, 8))
     flat_axes = axes.flatten()
 
-    norads = streaks_csv["norad_number"].unique()
-    colors = colormaps['tab10'].resampled(len(norads))
+    # norads = streaks_csv["norad_number"].unique()
+    # colors = colormaps['tab10'].resampled(len(norads))
+    img_height, img_width = 2048, 4096
+    # norad_color_map = {norad: colors(i) for i, norad in enumerate(norads)}
+    with fits.open(get_fits_path(streak_name)) as hdu_list:
+        # Set image data to each subplot and add the extension number
+        for idx, ax in enumerate(flat_axes):
+            extension_id = get_cell_order()[idx]
+            img = hdu_list[extension_id].data.astype(np.float32)
+            # if img is None:
+            #     raise ValueError(f"Failed to load image for extension {extension_id}")
+            # if not isinstance(img, np.ndarray):
+            #     raise TypeError("The image is not a valid NumPy array")
+            # if len(img.shape) < 2:
+            #     raise ValueError("The image does not have enough dimensions to be resized")
+            # if img.shape[0] < 2 or img.shape[1] < 2:
+            #     raise ValueError("The image is too small to be resized")
+            #print(img.dtype)
+            # img = cv2.resize(img, (img.shape[1] // scale, img.shape[0] // scale), interpolation=cv2.INTER_LINEAR)
 
-    norad_color_map = {norad: colors(i) for i, norad in enumerate(norads)}
-
-    # Set image data to each subplot and add the extension number
-    for idx, ax in enumerate(flat_axes):
-        extension_id = get_cell_order()[idx]
-        img = fitsio.read(get_fits_path(streak_name), ext=extension_id).astype(np.float32)
-        # if img is None:
-        #     raise ValueError(f"Failed to load image for extension {extension_id}")
-        # if not isinstance(img, np.ndarray):
-        #     raise TypeError("The image is not a valid NumPy array")
-        # if len(img.shape) < 2:
-        #     raise ValueError("The image does not have enough dimensions to be resized")
-        # if img.shape[0] < 2 or img.shape[1] < 2:
-        #     raise ValueError("The image is too small to be resized")
-        #print(img.dtype)
-        img = cv2.resize(img, (img.shape[1] // scale, img.shape[0] // scale), interpolation=cv2.INTER_LINEAR)
-
-        # mirror the image along the y axis
-        img = np.flip(img)
-        ax.imshow(img, cmap='gray', norm=LogNorm())
-        ax.text(0.15, 0.9, str(extension_id), color='red', fontsize=12, ha='center', va='center',
-                transform=ax.transAxes)
-        ax.set_xticks([])
-        ax.set_yticks([])
+            # mirror the image along the y axis
+            img = np.flip(img)
+            ax.imshow(img, cmap='viridis', norm=LogNorm())
+            ax.text(0.15, 0.9, str(extension_id), color='red', fontsize=12, ha='center', va='center',
+                    transform=ax.transAxes)
+            ax.set_xticks([])
+            ax.set_yticks([])
 
     plt.tight_layout()
     plt.subplots_adjust(wspace=0, hspace=0)
@@ -249,20 +248,22 @@ def highlight_fits(streak_name: str, save: bool = False, show: bool = True):
             'x_end[px]': int,
             'y_end[px]': int
         })
-        img_height, img_width = fits[extension_id].get_info()['dims']
+
         # Loop over the filtered DataFrame
         for index, row in streaks_in_cell.iterrows():
             streak_x_start = (img_width - row['x_start[px]']) // scale
             streak_y_start = (img_height - row['y_start[px]']) // scale
             streak_x_end = (img_width - row['x_end[px]']) // scale
             streak_y_end = (img_height - row['y_end[px]']) // scale
-            norad = row['norad_number']
-            flat_axes[subplot_idx].plot([streak_x_start, streak_x_end], [streak_y_start, streak_y_end],
-                                        color=norad_color_map[norad], linewidth=2)
+            # norad = row['norad_number']
+            # flat_axes[subplot_idx].plot([streak_x_start, streak_x_end], [streak_y_start, streak_y_end],
+            #                             color=norad_color_map[norad], linewidth=2)
+            flat_axes[subplot_idx].plot([streak_x_start, streak_x_end], [streak_y_start, streak_y_end], linewidth=2)
 
     # Add legend
-    handles = [plt.Line2D([0], [0], color=norad_color_map[norad], label=norad) for norad in norads]
-    plt.legend(handles=handles, title="Norad number", loc='upper right')
+    # handles = [plt.Line2D([0], [0], color=norad_color_map[norad], label=norad) for norad in norads]
+    # handles = [plt.Line2D([0], [0], color=norad_color_map[norad], label=norad) for norad in norads]
+    # plt.legend(handles=handles, title="Norad number", loc='upper right')
 
     if save:
         plt.savefig("data/figures/" + streak_name + ".highlighted.png", transparent=False)

@@ -660,9 +660,19 @@ def split_data_into_datasets_strips_141224_lc_50(train=0.8, val=0.1, test=0.1, s
                             k_fold=k_fold)
 
 
+def split_data_into_datasets_artificial_600px(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu',
+                                              image_directory='src/datasets/artificial_strips/w600px/', no_samples=-1,
+                                              min_width=600, augmentation_opts=None, k_fold=1):
+
+    data_df = pd.read_csv(utils.path_from_proot("src/datasets/artificial_strips/w600px/image_parameters.csv"))
+    return prepare_datasets(data_df, train=train, val=val, test=test, seed=seed, device=device,
+                            no_samples=no_samples, min_width=min_width, width_column='width',
+                            target_column='frequency',
+                            image_file_column='filename', image_directory=image_directory,
+                            augmentation_opts=augmentation_opts,
+                            k_fold=k_fold)
+
 def split_data_into_datasets_artificial_wx():
     raise NotImplementedError("This function is not implemented yet.")
 
 
-def split_data_into_datasets_artificial_600px():
-    raise NotImplementedError("This function is not implemented yet.")

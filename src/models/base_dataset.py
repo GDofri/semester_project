@@ -662,6 +662,7 @@ def split_data_into_datasets_strips_141224_lc_50(train=0.8, val=0.1, test=0.1, s
 
 def split_data_into_datasets_artificial_600px(train=0.8, val=0.1, test=0.1, seed=1104, device='cpu',
                                               image_directory='src/datasets/artificial_strips/w600px/', no_samples=-1,
+                                              data_path='src/datasets/artificial_strips/w600px/image_parameters.csv',
                                               min_width=600, augmentation_opts=None, k_fold=1):
 
     data_df = pd.read_csv(utils.path_from_proot("src/datasets/artificial_strips/w600px/image_parameters.csv"))

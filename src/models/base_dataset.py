@@ -665,7 +665,7 @@ def split_data_into_datasets_artificial_600px(train=0.8, val=0.1, test=0.1, seed
                                               data_path='src/datasets/artificial_strips/w600px/image_parameters.csv',
                                               min_width=600, augmentation_opts=None, k_fold=1):
 
-    data_df = pd.read_csv(utils.path_from_proot("src/datasets/artificial_strips/w600px/image_parameters.csv"))
+    data_df = pd.read_csv(utils.path_from_proot(data_path))
     return prepare_datasets(data_df, train=train, val=val, test=test, seed=seed, device=device,
                             no_samples=no_samples, min_width=min_width, width_column='width',
                             target_column='frequency',
